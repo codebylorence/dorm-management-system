@@ -1,0 +1,70 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@100..800&display=swap');
+
+
+@import "tailwindcss";
+
+@font-face {
+  font-family: LightMilk;
+  src: url('/fonts/LEMONMILK-Light.woff2') format('woff2'),
+       url('/fonts/LEMONMILK-Light.woff') format('woff');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: RegularMilk ;
+  src: url('/fonts/LEMONMILK-Regular.woff2') format('woff2'),
+       url('/fonts/LEMONMILK-Regular.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: MDMilk ;
+  src: url('/fonts/LEMONMILK-Medium.woff2') format('woff2'),
+       url('/fonts/LEMONMILK-Medium.woff') format('woff');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: BoldMilk ;
+  src: url('/fonts/LEMONMILK-Bold.woff2') format('woff2'),
+       url('/fonts/LEMONMILK-Bold.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: Regschrift;
+  src: url('/fonts/BAHNSCHRIFT-Regular.woff2') format('woff2'),
+       url('/fonts/BAHNSCHRIFT-Regular.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Sora';
+  src: url('/fonts/Sora-Regular.woff2') format('woff2'),
+       url('/fonts/Sora-Regular.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+
+@theme{
+  --font-Sora: 'Sora';
+  --font-Regschrift: Regschrift;
+  --font-LightMilk: LightMilk;
+  --font-RegularMilk: RegularMilk;
+  --font-MDMilk: MDMilk;
+  --font-BoldMilk: BoldMilk;
+}
+
