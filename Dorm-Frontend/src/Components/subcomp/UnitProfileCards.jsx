@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { FaUser, FaPhone, FaEnvelope, FaCalendar, FaMapMarkerAlt, FaEdit, FaTrash, FaArrowLeft } from "react-icons/fa";
 import { toast } from 'react-toastify';
+import { useAuth } from "../../context/AuthContext";
 import unitprofbg from "../../assets/unitprofbg.png";
 import tenantprofbg from "../../assets/tenantprofbg.png.jpg";
 import { getAllTenants, updateTenant, deleteTenant } from "../../api";
@@ -10,6 +11,7 @@ import { getAllUnits } from "../../api";
 export default function UnitProfileCards() {
   const { unitNumber } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [unit, setUnit] = useState(null);
   const [tenants, setTenants] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -153,13 +155,15 @@ export default function UnitProfileCards() {
                   >
                     <FaEdit size={16} />
                   </button>
-                  <button
-                    onClick={() => setShowDeleteModal(tenant)}
-                    className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg transition-colors"
-                    title="Remove Tenant"
-                  >
-                    <FaTrash size={16} />
-                  </button>
+                  {user?.role === "admin" && (
+                    <button
+                      onClick={() => setShowDeleteModal(tenant)}
+                      className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg transition-colors"
+                      title="Remove Tenant"
+                    >
+                      <FaTrash size={16} />
+                    </button>
+                  )}
                 </div>
               </div>
 

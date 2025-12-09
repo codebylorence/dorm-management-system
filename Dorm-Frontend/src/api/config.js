@@ -6,11 +6,25 @@ export const defaultHeaders = {
   'Content-Type': 'application/json',
 };
 
+// Get auth token from localStorage
+const getAuthToken = () => {
+  return localStorage.getItem('token');
+};
+
 // Generic API request handler
 export const apiRequest = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
+  
+  // Add authentication token to headers if available
+  const token = getAuthToken();
+  const headers = { ...defaultHeaders };
+  
+  if (token && !options.headers?.Authorization) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  
   const config = {
-    headers: { ...defaultHeaders, ...options.headers },
+    headers: { ...headers, ...options.headers },
     ...options,
   };
 
@@ -20,6 +34,16 @@ export const apiRequest = async (endpoint, options = {}) => {
     if (!response.ok) {
       const error = await response.json();
       console.error('Backend Error Details:', error);
+      
+      // Handle unauthorized (token expired or invalid)
+      if (response.status === 401) {
+        // Clear token and user data
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        // Redirect to login page if needed
+        // window.location.href = '/login';
+      }
+      
       throw new Error(error.message || error.error || 'API request failed');
     }
     

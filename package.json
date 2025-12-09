@@ -1,0 +1,19 @@
+{
+  "name": "dorm-management-system",
+  "version": "1.0.0",
+  "description": "Dorm Management System - Full Stack Application",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd Dorm-Backend && npm run dev",
+    "dev:frontend": "cd Dorm-Frontend && npm run dev",
+    "install:all": "npm install && cd Dorm-Backend && npm install && cd ../Dorm-Frontend && npm install",
+    "create-admin": "cd Dorm-Backend && npm run create-admin"
+  },
+  "keywords": ["dorm", "management", "system"],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
+

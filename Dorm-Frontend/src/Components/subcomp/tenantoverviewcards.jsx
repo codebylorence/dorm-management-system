@@ -2,11 +2,13 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaEye, FaTrash } from "react-icons/fa";
 import { toast } from 'react-toastify';
+import { useAuth } from "../../context/AuthContext";
 import TenantsBg from "../../assets/tenantsoverviewbg.png";
 import { getAllTenants, createTenant, deleteTenant, updateTenant } from "../../api";
 import { getAllUnits } from "../../api";
 
 export default function tenantoverviewcards() {
+  const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -215,13 +217,15 @@ export default function tenantoverviewcards() {
                         >
                           <FaEye />
                         </button>
-                        <button
-                          onClick={() => handleDelete(tenant)}
-                          className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg transition-colors"
-                          title="Delete"
-                        >
-                          <FaTrash />
-                        </button>
+                        {user?.role === "admin" && (
+                          <button
+                            onClick={() => handleDelete(tenant)}
+                            className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg transition-colors"
+                            title="Delete"
+                          >
+                            <FaTrash />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { toast } from 'react-toastify';
 import logo from '../../assets/logo.png'
 import {
   FaBars,
@@ -17,18 +19,26 @@ import { VscGitStashApply } from "react-icons/vsc";
 import { TbContract } from "react-icons/tb";
 
 export default function sidebar({ open, setOpen }) {
-  
+  const { logout } = useAuth();
+  const navigate = useNavigate();
 
   const menuItems = [
   { name: "Units", icon: <FaDoorClosed />, path: "/" },
   { name: "Tenants", icon: <FaHouseUser />, path: "/tenantoverview" },
-  { name: "Payment History", icon: <FaMoneyCheckAlt />, path: "/paymenthistory" },
+  { name: "Payments", icon: <FaMoneyCheckAlt />, path: "/payments" },
+  { name: "Settings", icon: <FaCog />, path: "/settings" },
 
 ];
 
- const handleLogout = () => {
-    console.log("Logging out...");
-    // Add actual logout logic here (e.g., clear tokens, redirect, etc.)
+ const handleLogout = async () => {
+    try {
+      await logout();
+      toast.success("Logged out successfully");
+      navigate('/login');
+    } catch (error) {
+      console.error("Logout error:", error);
+      toast.error("Error logging out");
+    }
   };
 
   return (

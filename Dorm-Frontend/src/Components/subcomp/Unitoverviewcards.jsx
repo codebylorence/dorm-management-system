@@ -2,11 +2,13 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { FaTrash, FaUsers, FaBed } from "react-icons/fa";
 import { toast } from 'react-toastify';
+import { useAuth } from "../../context/AuthContext";
 import UnitsOverviewBG from "../../assets/unitsoverviewbg.png";
 import Roombg from "../../assets/Roombg.png";
 import { getAllUnits, createUnit, deleteUnit } from "../../api";
 
 export default function Unitoverviewcards() {
+  const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [units, setUnits] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -112,16 +114,18 @@ export default function Unitoverviewcards() {
                   <h3 className="font-[BoldMilk] text-2xl text-[#4b150d] hover:text-[#8b2d1a] transition-colors">
                     {unit.unitNumber}
                   </h3>
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      handleDeleteUnit(unit);
-                    }}
-                    className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg transition-colors shadow-md z-10"
-                    title="Delete Unit"
-                  >
-                    <FaTrash size={14} />
-                  </button>
+                  {user?.role === "admin" && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleDeleteUnit(unit);
+                      }}
+                      className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg transition-colors shadow-md z-10"
+                      title="Delete Unit"
+                    >
+                      <FaTrash size={14} />
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-3">
