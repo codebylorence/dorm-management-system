@@ -98,3 +98,59 @@ exports.isAdmin = (req, res, next) => {
   next();
 };
 
+// Check if user is staff or admin
+exports.isStaffOrAdmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ 
+      message: 'User not authenticated' 
+    });
+  }
+  
+  if (!['admin', 'staff'].includes(req.user.role)) {
+    return res.status(403).json({ 
+      message: 'Staff or Admin access required' 
+    });
+  }
+  
+  next();
+};
+
+// Prevent staff from editing admin credentials
+exports.preventStaffEditingAdmin = async (req, res, next) => {
+  try {
+    if (req.user.role === 'admin') {
+      return next(); // Admins can edit anyone
+    }
+    
+    // If staff is trying to edit a user, check if target is admin
+    if (req.params.id) {
+      const User = require('../models/User');
+      const targetUser = await User.findByPk(req.params.id);
+      
+      if (targetUser && targetUser.role === 'admin') {
+        return res.status(403).json({ 
+          message: 'Staff cannot edit admin credentials' 
+        });
+      }
+    }
+    
+    next();
+  } catch (error) {
+    return res.status(500).json({ 
+      message: 'Error checking user permissions', 
+      error: error.message 
+    });
+  }
+};
+
+// Prevent staff from accessing system settings
+exports.preventStaffSystemAccess = (req, res, next) => {
+  if (req.user.role === 'staff') {
+    return res.status(403).json({ 
+      message: 'Access denied. Admin privileges required for system settings.' 
+    });
+  }
+  
+  next();
+};
+

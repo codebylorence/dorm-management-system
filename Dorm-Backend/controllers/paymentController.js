@@ -17,15 +17,24 @@ exports.getAllPayments = async (req, res) => {
       where.paymentType = paymentType;
     }
     
+    // Filter by due date range
     if (startDate && endDate) {
-      where.paymentDate = {
+      where.dueDate = {
         [Op.between]: [new Date(startDate), new Date(endDate)]
+      };
+    } else if (startDate) {
+      where.dueDate = {
+        [Op.gte]: new Date(startDate)
+      };
+    } else if (endDate) {
+      where.dueDate = {
+        [Op.lte]: new Date(endDate)
       };
     }
     
     const payments = await Payment.findAll({
       where,
-      order: [['paymentDate', 'DESC']],
+      order: [['dueDate', 'DESC']],
       include: [{
         model: Tenant,
         attributes: ['id', 'fullName', 'phone', 'email', 'unit']
@@ -245,7 +254,38 @@ exports.updatePayment = async (req, res) => {
       return res.status(404).json({ message: 'Payment not found' });
     }
     
-    await payment.update(req.body);
+    // Prepare update data
+    const updateData = { ...req.body };
+    
+    // Auto-update paidAmount based on status changes
+    if (updateData.status) {
+      switch (updateData.status) {
+        case 'Paid':
+          // When marking as paid, set paidAmount to full amount if not specified
+          if (!updateData.paidAmount) {
+            updateData.paidAmount = payment.amount;
+          }
+          break;
+        case 'Unpaid':
+          // When marking as unpaid, reset paidAmount to 0
+          updateData.paidAmount = 0;
+          break;
+        case 'Late':
+          // When marking as late, keep current paidAmount or set to 0 if not specified
+          if (!updateData.paidAmount && payment.paidAmount === null) {
+            updateData.paidAmount = 0;
+          }
+          break;
+        case 'Partial':
+          // For partial payments, keep existing paidAmount or require it to be specified
+          if (!updateData.paidAmount && payment.paidAmount === null) {
+            updateData.paidAmount = 0;
+          }
+          break;
+      }
+    }
+    
+    await payment.update(updateData);
     
     const updatedPayment = await Payment.findByPk(payment.id, {
       include: [{

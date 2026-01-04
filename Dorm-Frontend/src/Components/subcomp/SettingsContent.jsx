@@ -40,7 +40,13 @@ export default function SettingsContent() {
     if (activeTab === "users") {
       fetchUsers();
     }
-  }, [activeTab]);
+    
+    // Redirect staff users away from system tab
+    if (activeTab === "system" && currentUser?.role === "staff") {
+      setActiveTab("users");
+      toast.error("Access denied. Only administrators can access system information.");
+    }
+  }, [activeTab, currentUser?.role]);
 
   const fetchUsers = async () => {
     try {
@@ -99,6 +105,12 @@ export default function SettingsContent() {
   };
 
   const handleEditUser = (user) => {
+    // Staff can only edit their own profile
+    if (currentUser?.role === "staff" && user.id !== currentUser?.id) {
+      toast.error("You can only edit your own profile");
+      return;
+    }
+    
     setEditingUser(user);
     setUserForm({
       username: user.username,
@@ -205,16 +217,31 @@ export default function SettingsContent() {
           >
             User Management
           </button>
-          <button
-            onClick={() => setActiveTab("system")}
-            className={`px-6 py-2 rounded-lg font-[BoldMilk] transition-all ${
-              activeTab === "system"
-                ? "bg-[#db6747] text-white shadow-md"
-                : "bg-white text-[#4b150d] hover:bg-gray-100"
-            }`}
-          >
-            System Information
-          </button>
+          
+          {/* System Information Tab - Only visible for Admin */}
+          {currentUser?.role === "admin" ? (
+            <button
+              onClick={() => setActiveTab("system")}
+              className={`px-6 py-2 rounded-lg font-[BoldMilk] transition-all ${
+                activeTab === "system"
+                  ? "bg-[#db6747] text-white shadow-md"
+                  : "bg-white text-[#4b150d] hover:bg-gray-100"
+              }`}
+            >
+              System Information
+            </button>
+          ) : (
+            <button
+              disabled
+              className="px-6 py-2 rounded-lg font-[BoldMilk] bg-gray-300 text-gray-500 cursor-not-allowed relative group"
+              title="Admin access required"
+            >
+              System Information
+              <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                Admin access required
+              </div>
+            </button>
+          )}
         </div>
 
         {/* User Management Tab */}
@@ -255,8 +282,17 @@ export default function SettingsContent() {
                   </thead>
                   <tbody>
                     {users.map((user) => (
-                      <tr key={user.id} className="border-b border-gray-200 hover:bg-gray-50">
-                        <td className="py-3 px-4 text-[#4b150d]">{user.username}</td>
+                      <tr key={user.id} className={`border-b border-gray-200 hover:bg-gray-50 ${
+                        user.id === currentUser?.id ? 'bg-blue-50 border-blue-200' : ''
+                      }`}>
+                        <td className="py-3 px-4 text-[#4b150d]">
+                          {user.username}
+                          {user.id === currentUser?.id && (
+                            <span className="ml-2 text-xs bg-blue-500 text-white px-2 py-1 rounded-full">
+                              You
+                            </span>
+                          )}
+                        </td>
                         <td className="py-3 px-4 text-[#4b150d]">{user.fullName}</td>
                         <td className="py-3 px-4 text-[#4b150d]">{user.email}</td>
                         <td className="py-3 px-4">
@@ -288,13 +324,26 @@ export default function SettingsContent() {
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex gap-3">
-                            <button
-                              onClick={() => handleEditUser(user)}
-                              className="text-blue-600 hover:text-blue-800 transition-colors"
-                              title="Edit User"
-                            >
-                              <FaEdit className="text-lg" />
-                            </button>
+                            {/* Staff can only edit their own account, Admin can edit anyone */}
+                            {(currentUser?.role === "admin" || user.id === currentUser?.id) ? (
+                              <button
+                                onClick={() => handleEditUser(user)}
+                                className="text-blue-600 hover:text-blue-800 transition-colors"
+                                title={user.id === currentUser?.id ? "Edit Your Profile" : "Edit User"}
+                              >
+                                <FaEdit className="text-lg" />
+                              </button>
+                            ) : (
+                              <button
+                                disabled
+                                className="text-gray-400 cursor-not-allowed"
+                                title="You can only edit your own profile"
+                              >
+                                <FaEdit className="text-lg" />
+                              </button>
+                            )}
+                            
+                            {/* Only admin can delete users, and not their own account */}
                             {currentUser?.role === "admin" && currentUser.id !== user.id && (
                               <button
                                 onClick={() => handleDeleteUser(user.id)}
@@ -315,10 +364,15 @@ export default function SettingsContent() {
           </div>
         )}
 
-        {/* System Information Tab */}
-        {activeTab === "system" && (
+        {/* System Information Tab - Only accessible by Admin */}
+        {activeTab === "system" && currentUser?.role === "admin" && (
           <div>
-            <h2 className="font-[BoldMilk] text-[#4b150d] text-xl mb-6">System Configuration</h2>
+            <div className="flex items-center gap-2 mb-6">
+              <h2 className="font-[BoldMilk] text-[#4b150d] text-xl">System Configuration</h2>
+              <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                Admin Only
+              </span>
+            </div>
             <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
               <div>
                 <label className="block text-[#4b150d] font-[LightMilk] text-sm mb-2">System Name</label>
@@ -374,6 +428,28 @@ export default function SettingsContent() {
             </div>
           </div>
         )}
+
+        {/* Access Denied Message for Staff trying to access System tab */}
+        {activeTab === "system" && currentUser?.role === "staff" && (
+          <div className="text-center py-12">
+            <div className="bg-red-50 border border-red-200 rounded-xl p-8">
+              <div className="text-red-500 text-6xl mb-4">🔒</div>
+              <h3 className="font-[BoldMilk] text-[#4b150d] text-xl mb-2">Access Denied</h3>
+              <p className="text-[#4b150d] mb-4">
+                You don't have permission to access system information.
+              </p>
+              <p className="text-sm text-gray-600">
+                Only administrators can view and modify system settings.
+              </p>
+              <button
+                onClick={() => setActiveTab("users")}
+                className="mt-4 bg-[#db6747] text-white px-6 py-2 rounded-lg font-[BoldMilk] hover:bg-[#c44d30] transition-colors"
+              >
+                Go to User Management
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* User Modal */}
@@ -381,7 +457,10 @@ export default function SettingsContent() {
         <div className="fixed inset-0 bg-black/30 backdrop-blur-md flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-[15px_13px_0px_#330101]">
             <h3 className="font-[BoldMilk] text-[#4b150d] text-xl mb-4">
-              {editingUser ? "Edit User" : "Create New User"}
+              {editingUser 
+                ? (editingUser.id === currentUser?.id ? "Edit Your Profile" : "Edit User")
+                : "Create New User"
+              }
             </h3>
             <form onSubmit={handleUserSubmit} className="space-y-4">
               <div>
@@ -437,26 +516,48 @@ export default function SettingsContent() {
               </div>
               <div>
                 <label className="block text-[#4b150d] font-[LightMilk] text-sm mb-2">Role</label>
-                <select
-                  value={userForm.role}
-                  onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
-                  className="w-full px-4 py-2 border-2 border-[#4b150d] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#db6747]"
-                >
-                  <option value="staff">Staff</option>
-                  <option value="admin">Admin</option>
-                </select>
+                {currentUser?.role === "staff" && editingUser?.id === currentUser?.id ? (
+                  <input
+                    type="text"
+                    value={userForm.role}
+                    disabled
+                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
+                    title="You cannot change your own role"
+                  />
+                ) : (
+                  <select
+                    value={userForm.role}
+                    onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-[#4b150d] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#db6747]"
+                    disabled={currentUser?.role === "staff"}
+                  >
+                    <option value="staff">Staff</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                )}
               </div>
               <div>
                 <label className="block text-[#4b150d] font-[LightMilk] text-sm mb-2">Status</label>
-                <select
-                  value={userForm.status}
-                  onChange={(e) => setUserForm({ ...userForm, status: e.target.value })}
-                  className="w-full px-4 py-2 border-2 border-[#4b150d] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#db6747]"
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="suspended">Suspended</option>
-                </select>
+                {currentUser?.role === "staff" && editingUser?.id === currentUser?.id ? (
+                  <input
+                    type="text"
+                    value={userForm.status}
+                    disabled
+                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
+                    title="You cannot change your own status"
+                  />
+                ) : (
+                  <select
+                    value={userForm.status}
+                    onChange={(e) => setUserForm({ ...userForm, status: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-[#4b150d] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#db6747]"
+                    disabled={currentUser?.role === "staff"}
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                    <option value="suspended">Suspended</option>
+                  </select>
+                )}
               </div>
               <div className="flex gap-3 pt-4">
                 <button

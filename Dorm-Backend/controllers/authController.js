@@ -115,10 +115,26 @@ exports.login = async (req, res) => {
     // Generate token
     const token = generateToken(user);
     
+    // Create role indicator information
+    const roleIndicator = {
+      role: user.role,
+      roleDisplay: user.role === 'admin' ? 'Administrator' : 'Staff Member',
+      roleColor: user.role === 'admin' ? '#dc3545' : '#28a745',
+      roleIcon: user.role === 'admin' ? 'shield-check' : 'user',
+      accessLevel: user.role === 'admin' ? 'Full Access' : 'Limited Access',
+      welcomeMessage: `Welcome back, ${user.role === 'admin' ? 'Administrator' : 'Staff Member'} ${user.fullName}!`
+    };
+    
     res.json({
       message: 'Login successful',
       token,
-      user: user.toJSON()
+      user: user.toJSON(),
+      roleIndicator: roleIndicator,
+      sessionInfo: {
+        loginTime: new Date().toISOString(),
+        tokenExpiry: JWT_EXPIRE,
+        userAgent: req.headers['user-agent'] || 'Unknown'
+      }
     });
   } catch (error) {
     res.status(500).json({ 

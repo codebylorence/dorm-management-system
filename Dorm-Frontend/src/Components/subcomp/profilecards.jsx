@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import unitprofbg from "../../assets/unitprofbg.png";
-import tenantprofbg from "../../assets/tenantprofbg.png.jpg";
+import tenantprofbg from "../../assets/tenantprofbg.png";
 import payhisbg from '../../assets/payhisbg.png'
 
 export default function ProfileCards() {

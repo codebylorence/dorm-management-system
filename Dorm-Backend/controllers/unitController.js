@@ -142,3 +142,25 @@ exports.deleteUnit = async (req, res) => {
     res.status(500).json({ message: 'Error deleting unit', error: error.message });
   }
 };
+
+// Get unit permissions based on user role
+exports.getUnitPermissions = async (req, res) => {
+  try {
+    const permissions = {
+      role: req.user.role,
+      canCreateUnits: req.user.role === 'admin',
+      canDeleteUnits: req.user.role === 'admin',
+      canViewUnits: true,
+      canEditUnits: true,
+      showCreateButton: req.user.role === 'admin',
+      showDeleteButton: req.user.role === 'admin'
+    };
+    
+    res.json(permissions);
+  } catch (error) {
+    res.status(500).json({ 
+      message: 'Error fetching unit permissions', 
+      error: error.message 
+    });
+  }
+};

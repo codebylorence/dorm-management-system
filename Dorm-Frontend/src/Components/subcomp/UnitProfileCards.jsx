@@ -4,7 +4,7 @@ import { FaUser, FaPhone, FaEnvelope, FaCalendar, FaMapMarkerAlt, FaEdit, FaTras
 import { toast } from 'react-toastify';
 import { useAuth } from "../../context/AuthContext";
 import unitprofbg from "../../assets/unitprofbg.png";
-import tenantprofbg from "../../assets/tenantprofbg.png.jpg";
+import tenantprofbg from "../../assets/tenantprofbg.png";
 import { getAllTenants, updateTenant, deleteTenant } from "../../api";
 import { getAllUnits } from "../../api";
 
