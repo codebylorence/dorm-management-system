@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
-import { FaCalendarAlt, FaSearch, FaFilter, FaTimes, FaPlus, FaTrash } from "react-icons/fa";
-import { getAllPayments, getPaymentStatistics, getOverduePayments, updatePayment, createPayment, deletePayment } from "../../api";
+import { FaCalendarAlt, FaSearch, FaFilter, FaTimes, FaPlus, FaTrash, FaExclamationCircle, FaEdit } from "react-icons/fa";
+import { getAllPayments, getPaymentStatistics, getOverduePayments, updatePayment, createPayment, deletePayment, updateOverduePayments } from "../../api";
 import { getAllTenants } from "../../api";
 import PaymentsBg from "../../assets/payhisbg.png";
 
@@ -11,21 +11,15 @@ export default function PaymentsContent() {
   const [overduePayments, setOverduePayments] = useState([]);
   const [tenants, setTenants] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("all"); // all, unpaid, overdue, paid
+  const [filter, setFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
-  const [dateRange, setDateRange] = useState({
-    startDate: "",
-    endDate: ""
-  });
+  const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [editingPayment, setEditingPayment] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [paymentForm, setPaymentForm] = useState({
-    tenantId: "",
-    amount: "",
-    paymentType: "Rent Bill",
-    dueDate: "",
-    status: "Unpaid",
-    notes: ""
+    tenantId: "", amount: "", paymentType: "Rent Bill",
+    dueDate: "", status: "Unpaid", notes: ""
   });
 
   useEffect(() => {
@@ -40,12 +34,8 @@ export default function PaymentsContent() {
       if (filter === "unpaid") filters.status = "Unpaid";
       if (filter === "paid") filters.status = "Paid";
       if (filter === "overdue") filters.status = "Late";
-      
-      // Add date range filters
       if (dateRange.startDate) filters.startDate = dateRange.startDate;
       if (dateRange.endDate) filters.endDate = dateRange.endDate;
-      
-      console.log('Fetching payment data with filters:', filters);
       
       const [paymentsData, statsData, overdueData] = await Promise.all([
         getAllPayments(filters),
@@ -53,17 +43,10 @@ export default function PaymentsContent() {
         getOverduePayments()
       ]);
       
-      console.log('Payment data received:', {
-        payments: paymentsData.length,
-        statistics: statsData,
-        overdue: overdueData.length
-      });
-      
       setPayments(paymentsData);
       setStatistics(statsData);
       setOverduePayments(overdueData);
     } catch (error) {
-      console.error("Error fetching payments:", error);
       toast.error("Failed to load payment data");
     } finally {
       setLoading(false);
@@ -81,78 +64,96 @@ export default function PaymentsContent() {
 
   const handleStatusUpdate = async (paymentId, newStatus) => {
     try {
-      const payment = payments.find(p => p.id === paymentId);
       await updatePayment(paymentId, { status: newStatus });
-      
-      // Show detailed success message
-      const statusMessages = {
-        'Paid': `Payment marked as paid. Amount ₱${parseFloat(payment.amount).toFixed(2)} added to total collected.`,
-        'Unpaid': `Payment marked as unpaid. Amount removed from total collected.`,
-        'Late': `Payment marked as late. Amount removed from total collected.`,
-        'Partial': `Payment marked as partial. Please update paid amount if needed.`
-      };
-      
-      toast.success(statusMessages[newStatus] || "Payment status updated");
-      fetchData(); // This will refresh both payments and statistics
+      toast.success(`Payment marked as ${newStatus}`);
+      fetchData();
     } catch (error) {
-      console.error("Error updating payment:", error);
       toast.error("Failed to update payment status");
+    }
+  };
+
+  const handleUpdateOverdue = async () => {
+    try {
+      const result = await updateOverduePayments();
+      toast.success(`Updated ${result.updatedCount || 0} overdue payments`);
+      fetchData(); // Refresh the data
+    } catch (error) {
+      console.error("Error updating overdue payments:", error);
+      toast.error("Failed to update overdue payments");
     }
   };
 
   const handleCreatePayment = async (e) => {
     e.preventDefault();
     try {
+      console.log("Form data:", paymentForm);
+      console.log("Available tenants:", tenants);
+      
       const selectedTenant = tenants.find(t => t.id === parseInt(paymentForm.tenantId));
       if (!selectedTenant) {
         toast.error("Please select a tenant");
         return;
       }
-
+      
+      console.log("Selected tenant:", selectedTenant);
+      
       const paymentData = {
         tenantId: parseInt(paymentForm.tenantId),
         unitNumber: selectedTenant.unit,
         tenantName: selectedTenant.fullName,
         amount: parseFloat(paymentForm.amount),
         paymentType: paymentForm.paymentType,
-        dueDate: paymentForm.dueDate || new Date().toISOString(),
+        dueDate: paymentForm.dueDate,
         status: paymentForm.status,
-        notes: paymentForm.notes
+        notes: paymentForm.notes || ""
       };
-
-      await createPayment(paymentData);
-      toast.success("Payment created successfully");
+      
+      console.log("Payment data to send:", paymentData);
+      
+      if (editingPayment) {
+        // Update existing payment
+        const result = await updatePayment(editingPayment.id, paymentData);
+        console.log("Payment updated successfully:", result);
+        toast.success("Payment updated successfully");
+      } else {
+        // Create new payment
+        const result = await createPayment(paymentData);
+        console.log("Payment created successfully:", result);
+        toast.success("Payment created successfully");
+      }
+      
       setShowPaymentModal(false);
-      setPaymentForm({
-        tenantId: "",
-        amount: "",
-        paymentType: "Rent Bill",
-        dueDate: "",
-        status: "Unpaid",
-        notes: ""
-      });
+      setEditingPayment(null);
+      setPaymentForm({ tenantId: "", amount: "", paymentType: "Rent Bill", dueDate: "", status: "Unpaid", notes: "" });
       fetchData();
     } catch (error) {
-      console.error("Error creating payment:", error);
-      toast.error(error.message || "Failed to create payment");
+      console.error("Error with payment:", error);
+      toast.error(error.message || `Failed to ${editingPayment ? 'update' : 'create'} payment`);
     }
   };
 
-  const handleDeletePayment = (payment) => {
-    setConfirmDelete(payment);
+  const handleEditPayment = (payment) => {
+    setEditingPayment(payment);
+    setPaymentForm({
+      tenantId: payment.tenantId?.toString() || "",
+      amount: payment.amount?.toString() || "",
+      paymentType: payment.paymentType || "Rent Bill",
+      dueDate: payment.dueDate ? payment.dueDate.split('T')[0] : "",
+      status: payment.status || "Unpaid",
+      notes: payment.notes || ""
+    });
+    setShowPaymentModal(true);
   };
 
   const confirmDeletePayment = async () => {
     if (confirmDelete) {
       try {
         await deletePayment(confirmDelete.id);
-        setPayments((prev) => prev.filter((p) => p.id !== confirmDelete.id));
-        toast.success(`Payment for ${confirmDelete.tenantName} deleted successfully!`);
+        toast.success(`Record deleted!`);
         setConfirmDelete(null);
-        fetchData(); // Refresh data to update statistics
+        fetchData();
       } catch (error) {
-        console.error("Error deleting payment:", error);
-        toast.error(error.message || "Failed to delete payment");
+        toast.error("Failed to delete payment");
       }
     }
   };
@@ -160,366 +161,230 @@ export default function PaymentsContent() {
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
     const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
+    return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
   };
 
   const formatAmount = (amount) => {
-    return `₱${parseFloat(amount).toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
-  };
-
-  const handleDateRangePreset = (preset) => {
-    const today = new Date();
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-    const startOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-    const endOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
-    const startOfYear = new Date(today.getFullYear(), 0, 1);
-    
-    const formatDate = (date) => date.toISOString().split('T')[0];
-    
-    switch (preset) {
-      case 'today':
-        setDateRange({
-          startDate: formatDate(today),
-          endDate: formatDate(today)
-        });
-        break;
-      case 'thisMonth':
-        setDateRange({
-          startDate: formatDate(startOfMonth),
-          endDate: formatDate(endOfMonth)
-        });
-        break;
-      case 'lastMonth':
-        setDateRange({
-          startDate: formatDate(startOfLastMonth),
-          endDate: formatDate(endOfLastMonth)
-        });
-        break;
-      case 'thisYear':
-        setDateRange({
-          startDate: formatDate(startOfYear),
-          endDate: formatDate(today)
-        });
-        break;
-      default:
-        setDateRange({ startDate: "", endDate: "" });
-    }
+    return `₱${parseFloat(amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
   };
 
   const getStatusStyle = (status) => {
     switch (status) {
-      case "Paid":
-        return "bg-green-400 text-white";
-      case "Unpaid":
-        return "bg-yellow-500 text-white";
-      case "Late":
-        return "bg-red-500 text-white";
-      case "Partial":
-        return "bg-blue-400 text-white";
-      default:
-        return "bg-gray-400 text-white";
+      case "Paid": return "bg-green-500 text-white border-green-600";
+      case "Unpaid": return "bg-amber-500 text-white border-amber-600";
+      case "Late": return "bg-red-500 text-white border-red-600 animate-pulse";
+      case "Partial": return "bg-blue-500 text-white border-blue-600";
+      default: return "bg-gray-400 text-white border-gray-500";
     }
   };
 
   const filteredPayments = payments.filter(
     (payment) =>
       payment.tenantName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.unitNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.paymentType?.toLowerCase().includes(searchTerm.toLowerCase())
+      payment.unitNumber?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
-    <div className="bg-gradient-to-r from-[#f7b094] to-[#dd7255] rounded-2xl px-6 py-10 flex flex-col gap-6 w-full h-full">
-      {/* Header */}
+    <div className="bg-gradient-to-r from-[#f7b094] to-[#dd7255] rounded-2xl px-4 md:px-8 py-10 flex flex-col gap-6 w-full min-h-screen font-sans">
+      
+      {/* HEADER SECTION */}
       <div
-        className="bg-cover bg-center shadow-[15px_13px_0px_#330101] rounded-2xl text-white py-6 px-6 md:px-20"
-        style={{ backgroundImage: `url(${PaymentsBg})` }}
+        className="bg-cover bg-center shadow-[8px_8px_0px_rgba(75,21,13,0.15)] rounded-3xl text-white py-10 px-8 md:px-16 border-2 border-[#4b150d] relative overflow-hidden"
+        style={{ backgroundImage: `linear-gradient(rgba(75,21,13,0.4), rgba(75,21,13,0.4)), url(${PaymentsBg})` }}
       >
-        <h1 className="font-[BoldMilk] tracking-[10px] md:tracking-[15px] text-[24px] md:text-[30px] text-white uppercase">
-          Payments Monitoring
-        </h1>
+        <div className="relative z-10">
+          <h1 className="font-[BoldMilk] tracking-[8px] md:tracking-[12px] text-2xl md:text-4xl uppercase drop-shadow-md">
+            Payments Monitoring
+          </h1>
+          <p className="font-[LightMilk] opacity-90 mt-2 tracking-widest uppercase text-[10px] md:text-xs">Financial Overview & History</p>
+        </div>
       </div>
 
-      {/* Statistics Cards */}
+      {/* STATISTICS */}
       {statistics && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-gradient-to-r from-[#fee8da] to-[#efd4c4] shadow-[15px_13px_0px_#330101] rounded-2xl p-6">
-            <h3 className="font-[LightMilk] text-[#4b150d] text-sm mb-2">Total Collected</h3>
-            <p className="font-[BoldMilk] text-[#4b150d] text-2xl">{formatAmount(statistics.totalCollected)}</p>
-          </div>
-          <div className="bg-gradient-to-r from-[#fee8da] to-[#efd4c4] shadow-[15px_13px_0px_#330101] rounded-2xl p-6">
-            <h3 className="font-[LightMilk] text-[#4b150d] text-sm mb-2">Due Today</h3>
-            <p className="font-[BoldMilk] text-[#4b150d] text-2xl">{formatAmount(statistics.dueToday)}</p>
-          </div>
-          <div className="bg-gradient-to-r from-[#fee8da] to-[#efd4c4] shadow-[15px_13px_0px_#330101] rounded-2xl p-6">
-            <h3 className="font-[LightMilk] text-[#4b150d] text-sm mb-2">Overdue</h3>
-            <p className="font-[BoldMilk] text-[#4b150d] text-2xl">{formatAmount(statistics.overdue)}</p>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {[
+            { label: "Total Collected", val: statistics.totalCollected, color: "from-green-50 to-emerald-50", text: "text-emerald-700" },
+            { label: "Due Today", val: statistics.dueToday, color: "from-blue-50 to-indigo-50", text: "text-indigo-700" },
+            { label: "Overdue Balance", val: statistics.overdue, color: "from-red-50 to-orange-50", text: "text-red-700" },
+          ].map((stat, idx) => (
+            <div key={idx} className={`bg-gradient-to-br ${stat.color} border-2 border-[#4b150d] shadow-[6px_6px_0px_rgba(75,21,13,0.1)] rounded-2xl p-6 transition-all hover:-translate-y-1`}>
+              <h3 className="font-[BoldMilk] text-[#4b150d] text-[10px] uppercase tracking-widest mb-1 opacity-60">{stat.label}</h3>
+              <p className={`font-[BoldMilk] text-3xl ${stat.text}`}>{formatAmount(stat.val)}</p>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Filters and Search */}
-      <div className="bg-gradient-to-r from-[#fee8da] to-[#efd4c4] shadow-[15px_13px_0px_#330101] rounded-2xl p-4">
-        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 mb-4">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <h2 className="font-[BoldMilk] text-[#4b150d] text-xl">Payment Records</h2>
-            {(dateRange.startDate || dateRange.endDate) && (
-              <div className="bg-gradient-to-r from-[#fee8da] to-[#efd4c4] border-2 border-[#4b150d] rounded-xl px-4 py-2 shadow-md">
-                <div className="flex items-center gap-2">
-                  <FaCalendarAlt className="text-[#4b150d]" />
-                  <span className="text-[#4b150d] text-sm font-[BoldMilk]">
-                    Date Filter Active
-                  </span>
-                </div>
-                <div className="text-[#4b150d] text-xs font-[LightMilk] mt-1">
-                  {dateRange.startDate && dateRange.endDate 
-                    ? `${dateRange.startDate} to ${dateRange.endDate}`
-                    : dateRange.startDate 
-                    ? `From ${dateRange.startDate}`
-                    : `Until ${dateRange.endDate}`
-                  }
-                </div>
-              </div>
-            )}
+      {/* MAIN CONTENT AREA */}
+      <div className="bg-white/90 backdrop-blur-md shadow-[10px_10px_0px_rgba(75,21,13,0.1)] rounded-[2.5rem] p-6 md:p-8 border-2 border-[#4b150d]">
+        
+        {/* TOOLBAR */}
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
+          <div>
+            <h2 className="font-[BoldMilk] text-[#4b150d] text-2xl uppercase tracking-tighter">Record Log</h2>
+            <div className="h-1.5 w-12 bg-[#4b150d] rounded-full mt-1"></div>
           </div>
-          <button
-            onClick={() => setShowPaymentModal(true)}
-            className="bg-[#db6747] text-white px-6 py-3 rounded-lg font-[BoldMilk] hover:bg-[#c44d30] transition-colors shadow-md flex items-center gap-2"
-          >
-            <FaPlus />
-            Add Payment
-          </button>
-        </div>
-        <div className="flex flex-col gap-4 mb-4">
-          {/* Status Filter Buttons */}
-          <div className="bg-gradient-to-r from-[#fee8da] to-[#efd4c4] rounded-xl p-4 shadow-md border-2 border-[#4b150d]">
-            <div className="flex items-center gap-2 mb-3">
-              <FaFilter className="text-[#4b150d]" />
-              <h3 className="font-[BoldMilk] text-[#4b150d] text-sm">Filter by Status</h3>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              <button
-                onClick={() => setFilter("all")}
-                className={`px-4 py-2 rounded-lg font-[BoldMilk] text-sm transition-colors ${
-                  filter === "all"
-                    ? "bg-[#db6747] text-white shadow-md"
-                    : "bg-white text-[#4b150d] hover:bg-gray-100 border-2 border-[#4b150d]"
-                }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setFilter("unpaid")}
-                className={`px-4 py-2 rounded-lg font-[BoldMilk] text-sm transition-colors ${
-                  filter === "unpaid"
-                    ? "bg-[#db6747] text-white shadow-md"
-                    : "bg-white text-[#4b150d] hover:bg-gray-100 border-2 border-[#4b150d]"
-                }`}
-              >
-                Unpaid
-              </button>
-              <button
-                onClick={() => setFilter("overdue")}
-                className={`px-4 py-2 rounded-lg font-[BoldMilk] text-sm transition-colors ${
-                  filter === "overdue"
-                    ? "bg-[#db6747] text-white shadow-md"
-                    : "bg-white text-[#4b150d] hover:bg-gray-100 border-2 border-[#4b150d]"
-                }`}
-              >
-                Overdue
-              </button>
-              <button
-                onClick={() => setFilter("paid")}
-                className={`px-4 py-2 rounded-lg font-[BoldMilk] text-sm transition-colors ${
-                  filter === "paid"
-                    ? "bg-[#db6747] text-white shadow-md"
-                    : "bg-white text-[#4b150d] hover:bg-gray-100 border-2 border-[#4b150d]"
-                }`}
-              >
-                Paid
-              </button>
-            </div>
-          </div>
-
-          {/* Minimal Date Range and Search */}
-          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
-            {/* Date Range - Only Start/End Dates */}
-            <div className="flex items-center gap-2">
-              <FaCalendarAlt className="text-[#4b150d]" />
+          
+          <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+            <div className="relative flex-1 md:w-80">
+              <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-[#4b150d] opacity-40" />
               <input
-                type="date"
-                value={dateRange.startDate}
-                onChange={(e) => setDateRange({ ...dateRange, startDate: e.target.value })}
-                className="px-2 py-1 bg-white border border-[#4b150d] rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#db6747]"
-                placeholder="Start Date"
+                type="text"
+                placeholder="Search tenant or unit..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 bg-[#4b150d]/5 border-2 border-[#4b150d]/20 rounded-2xl focus:outline-none focus:border-[#4b150d]"
               />
-              <span className="text-[#4b150d] text-sm">to</span>
-              <input
-                type="date"
-                value={dateRange.endDate}
-                onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
-                className="px-2 py-1 bg-white border border-[#4b150d] rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#db6747]"
-                placeholder="End Date"
-              />
-              {(dateRange.startDate || dateRange.endDate) && (
-                <button
-                  onClick={() => setDateRange({ startDate: "", endDate: "" })}
-                  className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600 transition-colors"
-                  title="Clear dates"
-                >
-                  <FaTimes size={10} />
-                </button>
-              )}
             </div>
 
-            {/* Search - Shorter */}
-            <div className="flex items-center gap-2">
-              <FaSearch className="text-[#4b150d]" />
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search payments..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-64 px-3 py-1 pl-8 bg-white border border-[#4b150d] rounded focus:outline-none focus:ring-1 focus:ring-[#db6747] text-sm"
-                />
-                <FaSearch className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs" />
-                {searchTerm && (
-                  <button
-                    onClick={() => setSearchTerm("")}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-red-500 transition-colors"
-                  >
-                    <FaTimes size={10} />
-                  </button>
-                )}
-              </div>
-            </div>
+            <button
+              onClick={handleUpdateOverdue}
+              className="bg-orange-500 text-white px-4 py-3 rounded-2xl font-[BoldMilk] shadow-[4px_4px_0px_rgba(0,0,0,0.2)] hover:bg-orange-600 transition-all flex items-center gap-2 uppercase text-xs tracking-widest"
+              title="Update overdue payments"
+            >
+              <FaExclamationCircle /> Update Overdue
+            </button>
+
+            <button
+              onClick={() => {
+                setEditingPayment(null);
+                setPaymentForm({ tenantId: "", amount: "", paymentType: "Rent Bill", dueDate: "", status: "Unpaid", notes: "" });
+                setShowPaymentModal(true);
+              }}
+              className="bg-[#4b150d] text-white px-6 py-3 rounded-2xl font-[BoldMilk] shadow-[4px_4px_0px_rgba(0,0,0,0.2)] hover:bg-[#330101] transition-all flex items-center gap-2 uppercase text-xs tracking-widest"
+            >
+              <FaPlus /> Add Payment
+            </button>
           </div>
         </div>
 
-        {/* Payments Table */}
-        {loading ? (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-[#4b150d]"></div>
-            <p className="mt-4 text-[#4b150d] font-[LightMilk]">Loading payments...</p>
-          </div>
-        ) : (
-          <div className="bg-white rounded-xl shadow-md overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-[#4b150d] text-[#efd4c4]">
-                <tr>
-                  <th className="py-3 px-4 text-left">Unit</th>
-                  <th className="py-3 px-4 text-left">Tenant</th>
-                  <th className="py-3 px-4 text-left">Payment Type</th>
-                  <th className="py-3 px-4 text-left">Amount</th>
-                  <th className="py-3 px-4 text-left">Due Date</th>
-                  <th className="py-3 px-4 text-left">Status</th>
-                  <th className="py-3 px-4 text-left">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPayments.map((payment) => (
-                  <tr key={payment.id} className="border-b border-gray-200 hover:bg-gray-50">
-                    <td className="py-3 px-4 text-[#4b150d] font-[LightMilk]">{payment.unitNumber}</td>
-                    <td className="py-3 px-4 text-[#4b150d] font-[LightMilk]">{payment.tenantName}</td>
-                    <td className="py-3 px-4 text-[#4b150d] font-[LightMilk]">{payment.paymentType}</td>
-                    <td className="py-3 px-4 text-[#4b150d] font-[BoldMilk]">{formatAmount(payment.amount)}</td>
-                    <td className="py-3 px-4 text-[#4b150d] font-[LightMilk]">{formatDate(payment.dueDate)}</td>
-                    <td className="py-3 px-4">
-                      <span className={`rounded px-2 py-1 text-sm ${getStatusStyle(payment.status)}`}>
-                        {payment.status}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
+        {/* QUICK FILTERS */}
+        <div className="flex flex-wrap gap-2 mb-8">
+          {["all", "unpaid", "overdue", "paid"].map((t) => (
+            <button
+              key={t}
+              onClick={() => setFilter(t)}
+              className={`px-6 py-2 rounded-xl font-[BoldMilk] text-[10px] uppercase border-2 transition-all ${
+                filter === t 
+                ? "bg-[#4b150d] text-white border-[#4b150d]" 
+                : "bg-white text-[#4b150d] border-[#4b150d]/10 hover:border-[#4b150d]/40"
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+
+        {/* TABLE */}
+        <div className="bg-white rounded-2xl border-2 border-[#4b150d] overflow-hidden">
+          {loading ? (
+            <div className="text-center py-24 font-[BoldMilk] text-[#4b150d] animate-pulse">LOADING DATA...</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-[#4b150d] text-[#efd4c4]">
+                  <tr>
+                    <th className="py-5 px-6 text-left font-[BoldMilk] uppercase text-[10px] tracking-widest">Unit / Tenant</th>
+                    <th className="py-5 px-6 text-left font-[BoldMilk] uppercase text-[10px] tracking-widest">Bill Type</th>
+                    <th className="py-5 px-6 text-left font-[BoldMilk] uppercase text-[10px] tracking-widest">Amount</th>
+                    <th className="py-5 px-6 text-left font-[BoldMilk] uppercase text-[10px] tracking-widest">Due Date</th>
+                    <th className="py-5 px-6 text-left font-[BoldMilk] uppercase text-[10px] tracking-widest">Status</th>
+                    <th className="py-5 px-6 text-center font-[BoldMilk] uppercase text-[10px] tracking-widest">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#4b150d]/10">
+                  {filteredPayments.map((payment) => (
+                    <tr key={payment.id} className={`hover:bg-[#4b150d]/5 transition-colors ${payment.status === 'Late' ? 'bg-red-50 border-l-4 border-red-500' : ''}`}>
+                      <td className="py-4 px-6">
+                        <div className="font-[BoldMilk] text-[#4b150d] text-lg flex items-center gap-2">
+                          Unit {payment.unitNumber}
+                          {payment.status === 'Late' && <FaExclamationCircle className="text-red-500 animate-pulse" size={14} />}
+                        </div>
+                        <div className="font-[LightMilk] text-[10px] text-[#4b150d] opacity-60 uppercase">{payment.tenantName}</div>
+                      </td>
+                      <td className="py-4 px-6 font-[LightMilk] text-[#4b150d] text-xs italic">{payment.paymentType}</td>
+                      <td className="py-4 px-6 font-[BoldMilk] text-[#4b150d] text-lg">{formatAmount(payment.amount)}</td>
+                      <td className="py-4 px-6 font-[LightMilk] text-[#4b150d] text-sm">{formatDate(payment.dueDate)}</td>
+                      <td className="py-4 px-6">
                         <select
                           value={payment.status}
                           onChange={(e) => handleStatusUpdate(payment.id, e.target.value)}
-                          className={`rounded px-2 py-1 text-sm ${getStatusStyle(payment.status)} border-none`}
+                          className={`font-[BoldMilk] text-[9px] px-4 py-1.5 rounded-full border-2 shadow-sm uppercase tracking-wider ${getStatusStyle(payment.status)}`}
                         >
-                          <option value="Paid">Paid</option>
-                          <option value="Unpaid">Unpaid</option>
-                          <option value="Late">Late</option>
-                          <option value="Partial">Partial</option>
+                          <option value="Paid">PAID</option>
+                          <option value="Unpaid">UNPAID</option>
+                          <option value="Late">LATE</option>
+                          <option value="Partial">PARTIAL</option>
                         </select>
-                        <button
-                          onClick={() => handleDeletePayment(payment)}
-                          className="bg-red-500 hover:bg-red-600 text-white p-2 rounded transition-colors shadow-sm"
-                          title="Delete Payment"
-                        >
-                          <FaTrash size={12} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {filteredPayments.length === 0 && !loading && (
-                  <tr>
-                    <td colSpan="7" className="text-center py-6 text-gray-600">
-                      No payments found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* Overdue Payments Alert */}
-        {overduePayments.length > 0 && (
-          <div className="mt-4 bg-red-100 border-2 border-red-500 rounded-xl p-4">
-            <h3 className="font-[BoldMilk] text-red-800 mb-2">⚠️ Overdue Payments ({overduePayments.length})</h3>
-            <div className="space-y-2">
-              {overduePayments.slice(0, 5).map((payment) => (
-                <div key={payment.id} className="text-sm text-red-700">
-                  <span className="font-[BoldMilk]">{payment.tenantName}</span> - Unit {payment.unitNumber} - {formatAmount(payment.amount)} (Due: {formatDate(payment.dueDate)})
-                </div>
-              ))}
-              {overduePayments.length > 5 && (
-                <p className="text-sm text-red-700 font-[LightMilk]">...and {overduePayments.length - 5} more</p>
-              )}
+                      </td>
+                      <td className="py-4 px-6 text-center">
+                        <div className="flex justify-center gap-2">
+                          <button 
+                            onClick={() => handleEditPayment(payment)} 
+                            className="text-blue-600 p-2 hover:bg-blue-50 rounded-xl transition-all"
+                            title="Edit Payment"
+                          >
+                            <FaEdit size={14} />
+                          </button>
+                          <button 
+                            onClick={() => setConfirmDelete(payment)} 
+                            className="text-red-600 p-2 hover:bg-red-50 rounded-xl transition-all"
+                            title="Delete Payment"
+                          >
+                            <FaTrash size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* Create Payment Modal */}
+      {/* MODAL - ENHANCED FROM IMAGE_FECC84.PNG */}
       {showPaymentModal && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-md flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-[15px_13px_0px_#330101] max-h-[90vh] overflow-y-auto">
-            <h3 className="font-[BoldMilk] text-[#4b150d] text-xl mb-4">Create New Payment</h3>
-            <form onSubmit={handleCreatePayment} className="space-y-4">
-              <div>
-                <label className="block text-[#4b150d] font-[LightMilk] text-sm mb-2">Tenant *</label>
-                <select
-                  required
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex justify-center items-center p-4">
+          <div className="bg-white rounded-[2.5rem] border-4 border-[#4b150d] shadow-[15px_15px_0px_rgba(0,0,0,0.2)] p-10 w-full max-w-xl animate-in zoom-in duration-200">
+            <div className="flex justify-between items-start mb-10">
+              <h2 className="font-[BoldMilk] text-[#4b150d] text-4xl uppercase tracking-tighter">
+                {editingPayment ? "Edit Payment" : "New Transaction"}
+              </h2>
+              <button onClick={() => {
+                setShowPaymentModal(false);
+                setEditingPayment(null);
+                setPaymentForm({ tenantId: "", amount: "", paymentType: "Rent Bill", dueDate: "", status: "Unpaid", notes: "" });
+              }} className="text-[#4b150d] opacity-40 hover:opacity-100 transition-opacity">
+                <FaTimes size={28}/>
+              </button>
+            </div>
+            
+            <form onSubmit={handleCreatePayment} className="flex flex-col gap-8">
+              {/* Select Active Tenant */}
+              <div className="flex flex-col gap-3">
+                <label className="font-[BoldMilk] text-[10px] text-[#4b150d] uppercase ml-1">Select Active Tenant</label>
+                <select 
+                  required className="w-full px-6 py-4 bg-[#4b150d]/5 border-2 border-[#4b150d] rounded-2xl font-[BoldMilk] uppercase text-sm tracking-widest focus:ring-4 focus:ring-[#4b150d]/10 outline-none appearance-none"
+                  style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234b150d'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1.5rem center', backgroundSize: '1.2rem' }}
                   value={paymentForm.tenantId}
-                  onChange={(e) => setPaymentForm({ ...paymentForm, tenantId: e.target.value })}
-                  className="w-full px-4 py-2 border-2 border-[#4b150d] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#db6747]"
+                  onChange={(e) => setPaymentForm({...paymentForm, tenantId: e.target.value})}
                 >
-                  <option value="">Select a tenant</option>
-                  {tenants.map((tenant) => (
-                    <option key={tenant.id} value={tenant.id}>
-                      {tenant.fullName} - Unit {tenant.unit}
-                    </option>
-                  ))}
+                  <option value="">Choose a tenant...</option>
+                  {tenants.map(t => <option key={t.id} value={t.id}>Unit {t.unit} - {t.fullName}</option>)}
                 </select>
               </div>
-              <div>
-                <label className="block text-[#4b150d] font-[LightMilk] text-sm mb-2">Payment Type *</label>
-                <select
-                  required
+
+              {/* Bill Type Selection */}
+              <div className="flex flex-col gap-3">
+                <label className="font-[BoldMilk] text-[10px] text-[#4b150d] uppercase ml-1">Bill Type</label>
+                <select 
+                  required className="w-full px-6 py-4 bg-[#4b150d]/5 border-2 border-[#4b150d] rounded-2xl font-[BoldMilk] uppercase text-sm tracking-widest focus:ring-4 focus:ring-[#4b150d]/10 outline-none appearance-none"
+                  style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234b150d'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1.5rem center', backgroundSize: '1.2rem' }}
                   value={paymentForm.paymentType}
-                  onChange={(e) => setPaymentForm({ ...paymentForm, paymentType: e.target.value })}
-                  className="w-full px-4 py-2 border-2 border-[#4b150d] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#db6747]"
+                  onChange={(e) => setPaymentForm({...paymentForm, paymentType: e.target.value})}
                 >
                   <option value="Rent Bill">Rent Bill</option>
                   <option value="Electricity & Water Bill">Electricity & Water Bill</option>
@@ -529,128 +394,62 @@ export default function PaymentsContent() {
                   <option value="Other">Other</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-[#4b150d] font-[LightMilk] text-sm mb-2">Amount (₱) *</label>
-                <input
-                  type="number"
-                  required
-                  step="0.01"
-                  min="0"
-                  value={paymentForm.amount}
-                  onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
-                  className="w-full px-4 py-2 border-2 border-[#4b150d] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#db6747]"
-                  placeholder="0.00"
-                />
+
+              {/* Amount and Due Date Row */}
+              <div className="grid grid-cols-2 gap-5">
+                <div className="flex flex-col gap-3">
+                  <label className="font-[BoldMilk] text-[10px] text-[#4b150d] uppercase ml-1">Amount (PHP)</label>
+                  <input 
+                    type="number" step="0.01" required
+                    className="w-full px-6 py-4 bg-[#4b150d]/5 border-2 border-[#4b150d]/10 rounded-2xl font-[BoldMilk] focus:border-[#4b150d] outline-none"
+                    value={paymentForm.amount}
+                    onChange={(e) => setPaymentForm({...paymentForm, amount: e.target.value})}
+                  />
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  <label className="font-[BoldMilk] text-[10px] text-[#4b150d] uppercase ml-1">Due Date</label>
+                  <input 
+                    type="date" required
+                    className="w-full px-6 py-4 bg-[#4b150d]/5 border-2 border-[#4b150d]/10 rounded-2xl font-[BoldMilk] focus:border-[#4b150d] outline-none"
+                    value={paymentForm.dueDate}
+                    onChange={(e) => setPaymentForm({...paymentForm, dueDate: e.target.value})}
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-[#4b150d] font-[LightMilk] text-sm mb-2">Due Date *</label>
-                <input
-                  type="date"
-                  required
-                  value={paymentForm.dueDate}
-                  onChange={(e) => setPaymentForm({ ...paymentForm, dueDate: e.target.value })}
-                  className="w-full px-4 py-2 border-2 border-[#4b150d] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#db6747]"
-                />
-              </div>
-              <div>
-                <label className="block text-[#4b150d] font-[LightMilk] text-sm mb-2">Status *</label>
-                <select
-                  required
-                  value={paymentForm.status}
-                  onChange={(e) => setPaymentForm({ ...paymentForm, status: e.target.value })}
-                  className="w-full px-4 py-2 border-2 border-[#4b150d] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#db6747]"
-                >
-                  <option value="Unpaid">Unpaid</option>
-                  <option value="Paid">Paid</option>
-                  <option value="Late">Late</option>
-                  <option value="Partial">Partial</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-[#4b150d] font-[LightMilk] text-sm mb-2">Notes</label>
-                <textarea
-                  value={paymentForm.notes}
-                  onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
-                  rows="3"
-                  className="w-full px-4 py-2 border-2 border-[#4b150d] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#db6747]"
-                  placeholder="Additional notes..."
-                />
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="submit"
-                  className="flex-1 bg-[#db6747] text-white px-4 py-2 rounded-lg font-[BoldMilk] hover:bg-[#c44d30] transition-colors"
-                >
-                  Create Payment
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
+
+              {/* Buttons */}
+              <div className="flex justify-end items-center gap-8 mt-4">
+                  <button type="button" onClick={() => {
                     setShowPaymentModal(false);
-                    setPaymentForm({
-                      tenantId: "",
-                      amount: "",
-                      paymentType: "Rent Bill",
-                      dueDate: "",
-                      status: "Unpaid",
-                      notes: ""
-                    });
-                  }}
-                  className="flex-1 bg-gray-300 text-[#4b150d] px-4 py-2 rounded-lg font-[BoldMilk] hover:bg-gray-400 transition-colors"
-                >
-                  Cancel
-                </button>
+                    setEditingPayment(null);
+                    setPaymentForm({ tenantId: "", amount: "", paymentType: "Rent Bill", dueDate: "", status: "Unpaid", notes: "" });
+                  }} className="font-[BoldMilk] text-[#4b150d] opacity-40 hover:opacity-100 uppercase text-sm tracking-widest transition-opacity">Cancel</button>
+                  <button type="submit" className="bg-[#4b150d] text-white px-12 py-5 rounded-3xl font-[BoldMilk] shadow-xl hover:bg-[#330101] active:scale-95 transition-all uppercase text-sm tracking-[2px]">
+                    {editingPayment ? "Update Payment" : "Post Payment"}
+                  </button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* CONFIRM DELETE */}
       {confirmDelete && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex justify-center items-center">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-[90%] max-w-md text-center">
-            <h2 className="text-xl font-semibold mb-4 text-[#4b150d]">
-              Confirm Deletion
-            </h2>
-            <p className="mb-6 text-[#4b150d]">
-              Are you sure you want to delete this payment record?
-            </p>
-            <div className="bg-gray-100 rounded-lg p-4 mb-6 text-left">
-              <p className="text-sm text-[#4b150d]">
-                <strong>Tenant:</strong> {confirmDelete.tenantName}
-              </p>
-              <p className="text-sm text-[#4b150d]">
-                <strong>Unit:</strong> {confirmDelete.unitNumber}
-              </p>
-              <p className="text-sm text-[#4b150d]">
-                <strong>Amount:</strong> {formatAmount(confirmDelete.amount)}
-              </p>
-              <p className="text-sm text-[#4b150d]">
-                <strong>Type:</strong> {confirmDelete.paymentType}
-              </p>
-              <p className="text-sm text-[#4b150d]">
-                <strong>Due Date:</strong> {formatDate(confirmDelete.dueDate)}
-              </p>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[60] flex justify-center items-center p-4">
+            <div className="bg-white rounded-[2rem] border-4 border-[#4b150d] p-10 max-w-sm text-center shadow-2xl animate-in fade-in zoom-in duration-200">
+                <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6 border-2 border-red-200">
+                  <FaTrash size={24}/>
+                </div>
+                <h2 className="font-[BoldMilk] text-[#4b150d] text-2xl uppercase mb-2">Delete Record?</h2>
+                <p className="font-[LightMilk] text-sm text-gray-500 mb-8">This will permanently remove the record for Unit {confirmDelete.unitNumber}.</p>
+                <div className="flex gap-4">
+                    <button onClick={() => setConfirmDelete(null)} className="flex-1 py-4 font-[BoldMilk] text-[#4b150d] opacity-50 uppercase text-xs">No, Keep</button>
+                    <button onClick={confirmDeletePayment} className="flex-1 bg-red-600 text-white py-4 rounded-2xl font-[BoldMilk] shadow-lg uppercase text-xs">Yes, Delete</button>
+                </div>
             </div>
-            <div className="flex justify-center gap-4">
-              <button
-                onClick={() => setConfirmDelete(null)}
-                className="bg-gray-300 px-4 py-2 rounded-md hover:bg-gray-400 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDeletePayment}
-                className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors"
-              >
-                Delete Payment
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </div>
   );
 }
-

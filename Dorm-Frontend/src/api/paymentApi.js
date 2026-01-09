@@ -68,3 +68,10 @@ export const deletePayment = async (id) => {
   });
 };
 
+// Update overdue payments
+export const updateOverduePayments = async () => {
+  return await apiRequest('/payments/update-overdue', {
+    method: 'PUT',
+  });
+};
+

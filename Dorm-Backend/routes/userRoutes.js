@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
-const { authenticate, isAdmin, preventStaffEditingAdmin, preventStaffSystemAccess, isStaffOrAdmin } = require('../middleware/auth');
+const { authenticate, isAdmin, preventStaffEditingAdmin, preventStaffSystemAccess, preventStaffEditingOthers, isStaffOrAdmin } = require('../middleware/auth');
 
 // All user routes require authentication
 router.use(authenticate);
@@ -27,7 +27,7 @@ router.put('/:id/role', isAdmin, userController.updateUserRole);
 router.get('/', userController.getAllUsers); // Now filters based on role
 router.get('/:id', userController.getUserById); // Now prevents staff from viewing admins
 router.post('/', isAdmin, userController.createUser); // Admin only
-router.put('/:id', preventStaffEditingAdmin, userController.updateUser); // Staff cannot edit admins
+router.put('/:id', preventStaffEditingOthers, userController.updateUser); // Staff can only edit themselves
 router.delete('/:id', isAdmin, userController.deleteUser); // Admin only
 
 module.exports = router;

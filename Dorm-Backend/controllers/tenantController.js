@@ -72,7 +72,20 @@ exports.updateTenant = async (req, res) => {
       return res.status(404).json({ message: 'Tenant not found' });
     }
     
-    await tenant.update(req.body);
+    // Permission check: tenants can only edit their own information
+    if (req.user.role === 'tenant' && req.user.id !== tenant.userId) {
+      return res.status(403).json({ message: 'You can only edit your own information' });
+    }
+    
+    // Prepare update data
+    const updateData = { ...req.body };
+    
+    // Tenants cannot change their unit assignment - only admin/staff can
+    if (req.user.role === 'tenant' && updateData.unit && updateData.unit !== tenant.unit) {
+      return res.status(403).json({ message: 'You cannot change your unit assignment. Contact admin for unit changes.' });
+    }
+    
+    await tenant.update(updateData);
     res.json(tenant);
   } catch (error) {
     res.status(400).json({ message: 'Error updating tenant', error: error.message });

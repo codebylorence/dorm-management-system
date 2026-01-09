@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useSystem } from '../../context/SystemContext';
 import { toast } from 'react-toastify';
 import logo from '../../assets/logo.png'
 import {
@@ -20,7 +21,22 @@ import { TbContract } from "react-icons/tb";
 
 export default function sidebar({ open, setOpen }) {
   const { logout } = useAuth();
+  const { systemSettings } = useSystem();
   const navigate = useNavigate();
+
+  // Generate abbreviation from system name
+  const getSystemAbbreviation = (systemName) => {
+    if (!systemName) return 'DMS';
+    
+    // Split by spaces and take first letter of each word
+    const words = systemName.split(' ');
+    if (words.length >= 2) {
+      return words.map(word => word.charAt(0).toUpperCase()).join('');
+    }
+    
+    // If single word, take first 3 characters
+    return systemName.substring(0, 3).toUpperCase();
+  };
 
   const menuItems = [
   { name: "Units", icon: <FaDoorClosed />, path: "/" },
@@ -60,7 +76,7 @@ export default function sidebar({ open, setOpen }) {
             <div className={`flex items-center gap-2 ${!open ? "md:hidden" : ""}`}>
                 <img src={logo} alt="Logo" className="w-8 h-8 object-contain" />
                 <h1 className={`font-RegularMilk text-base  ${!open ? "md:hidden" : ""}`}>
-                DMS
+                {getSystemAbbreviation(systemSettings.systemName)}
                 </h1>
             </div>
 

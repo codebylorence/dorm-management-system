@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useSystem } from '../context/SystemContext';
 import { toast } from 'react-toastify';
 import logo from '../assets/logo.png';
 import loginBg from '../assets/landingpagebg.png';
@@ -11,6 +12,21 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuth();
+  const { systemSettings } = useSystem();
+
+  // Generate abbreviation from system name
+  const getSystemAbbreviation = (systemName) => {
+    if (!systemName) return 'DMS';
+    
+    // Split by spaces and take first letter of each word
+    const words = systemName.split(' ');
+    if (words.length >= 2) {
+      return words.map(word => word.charAt(0).toUpperCase()).join('');
+    }
+    
+    // If single word, take first 3 characters
+    return systemName.substring(0, 3).toUpperCase();
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -46,10 +62,10 @@ export default function Login() {
           <div className="flex flex-col items-center mb-8">
             <img src={logo} alt="Logo" className="w-24 h-24 object-contain mb-4" />
             <h1 className="font-[BoldMilk] tracking-[10px] text-[32px] text-[#4b150d] uppercase">
-              DMS
+              {getSystemAbbreviation(systemSettings.systemName)}
             </h1>
             <p className="font-[LightMilk] text-[#4b150d] text-sm mt-2">
-              Dorm Management System
+              {systemSettings.systemName}
             </p>
           </div>
 
@@ -116,7 +132,7 @@ export default function Login() {
         {/* Version Info */}
         <div className="text-center mt-6">
           <p className="text-white text-xs font-[LightMilk] drop-shadow-lg">
-            Version 1.0.0 © 2025
+            Version {systemSettings.version} © 2025
           </p>
         </div>
       </div>

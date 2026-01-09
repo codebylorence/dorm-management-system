@@ -3,12 +3,14 @@ const cors = require('cors');
 require('dotenv').config();
 
 const sequelize = require('./config/database');
+const { startScheduler } = require('./utils/scheduler');
 
 // Import models
 const Tenant = require('./models/Tenant');
 const Unit = require('./models/Unit');
 const Payment = require('./models/Payment');
 const User = require('./models/User');
+const Setting = require('./models/Setting');
 
 // Import routes
 const tenantRoutes = require('./routes/tenantRoutes');
@@ -16,6 +18,7 @@ const unitRoutes = require('./routes/unitRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
+const settingRoutes = require('./routes/settingRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -39,7 +42,8 @@ app.get('/', (req, res) => {
       users: '/api/users',
       tenants: '/api/tenants',
       units: '/api/units',
-      payments: '/api/payments'
+      payments: '/api/payments',
+      settings: '/api/settings'
     }
   });
 });
@@ -49,6 +53,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/tenants', tenantRoutes);
 app.use('/api/units', unitRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/settings', settingRoutes);
 
 // Database connection and server start
 const startServer = async () => {
@@ -56,8 +61,11 @@ const startServer = async () => {
     await sequelize.authenticate();
     console.log('Database connection established successfully.');
     
-    await sequelize.sync({ alter: true });
+    await sequelize.sync({ force: false, alter: false });
     console.log('Database synchronized.');
+    
+    // Start the payment scheduler
+    startScheduler();
     
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);

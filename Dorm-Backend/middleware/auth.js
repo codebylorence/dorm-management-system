@@ -154,3 +154,65 @@ exports.preventStaffSystemAccess = (req, res, next) => {
   next();
 };
 
+// Prevent staff from editing other users (staff can only edit themselves)
+exports.preventStaffEditingOthers = async (req, res, next) => {
+  try {
+    if (req.user.role === 'admin') {
+      return next(); // Admins can edit anyone
+    }
+    
+    // Staff can only edit their own profile
+    if (req.params.id && req.params.id !== req.user.id.toString()) {
+      return res.status(403).json({ 
+        message: 'Staff can only edit their own profile' 
+      });
+    }
+    
+    next();
+  } catch (error) {
+    return res.status(500).json({ 
+      message: 'Error checking user permissions', 
+      error: error.message 
+    });
+  }
+};
+
+// Allow tenants to edit their own information, staff/admin can edit any tenant
+exports.allowTenantSelfEdit = async (req, res, next) => {
+  try {
+    // Admin and staff can edit any tenant
+    if (['admin', 'staff'].includes(req.user.role)) {
+      return next();
+    }
+    
+    // For tenants, check if they're editing their own information
+    if (req.user.role === 'tenant' && req.params.id) {
+      const Tenant = require('../models/Tenant');
+      const tenant = await Tenant.findByPk(req.params.id);
+      
+      if (!tenant) {
+        return res.status(404).json({ message: 'Tenant not found' });
+      }
+      
+      // Check if the tenant belongs to the current user
+      if (tenant.userId !== req.user.id) {
+        return res.status(403).json({ 
+          message: 'You can only edit your own information' 
+        });
+      }
+      
+      return next();
+    }
+    
+    // If not admin, staff, or tenant editing their own info, deny access
+    return res.status(403).json({ 
+      message: 'Access denied' 
+    });
+  } catch (error) {
+    return res.status(500).json({ 
+      message: 'Error checking tenant permissions', 
+      error: error.message 
+    });
+  }
+};
+

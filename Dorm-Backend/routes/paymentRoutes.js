@@ -12,6 +12,9 @@ router.get('/statistics', paymentController.getPaymentStatistics);
 // Get overdue payments
 router.get('/overdue', paymentController.getOverduePayments);
 
+// Update overdue payments
+router.put('/update-overdue', paymentController.updateOverduePayments);
+
 // Get payments by tenant
 router.get('/tenant/:tenantId', paymentController.getPaymentsByTenant);
 

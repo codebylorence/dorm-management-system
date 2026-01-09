@@ -7,6 +7,22 @@ exports.getAllPayments = async (req, res) => {
   try {
     const { status, paymentType, startDate, endDate } = req.query;
     
+    // First, automatically update overdue payments
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    await Payment.update(
+      { status: 'Late' },
+      {
+        where: {
+          dueDate: {
+            [Op.lt]: today
+          },
+          status: 'Unpaid'
+        }
+      }
+    );
+    
     const where = {};
     
     if (status) {
@@ -191,6 +207,38 @@ exports.getOverduePayments = async (req, res) => {
     res.json(overduePayments);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching overdue payments', error: error.message });
+  }
+};
+
+// Update overdue payments automatically
+exports.updateOverduePayments = async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Find all unpaid payments that are past due date
+    const overduePayments = await Payment.findAll({
+      where: {
+        dueDate: {
+          [Op.lt]: today
+        },
+        status: 'Unpaid'
+      }
+    });
+    
+    // Update their status to 'Late'
+    const updatePromises = overduePayments.map(payment => 
+      payment.update({ status: 'Late' })
+    );
+    
+    await Promise.all(updatePromises);
+    
+    res.json({
+      message: `Updated ${overduePayments.length} payments to overdue status`,
+      updatedCount: overduePayments.length
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating overdue payments', error: error.message });
   }
 };
 
